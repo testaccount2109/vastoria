@@ -34,10 +34,8 @@
         "type": "embedBootstrapper"
       },
       "nsis": {
-        "installMode": "both",
-        "displayLanguageSelector": false,
-        "languages": ["English"],
-        "shortcut": true
+        "installMode": "currentUser",
+        "languages": ["English"]
       }
     },
     "createUpdaterArtifacts": false
