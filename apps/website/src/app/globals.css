@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-vast-bg: #1e1e1e;
+  --color-vast-bg-elevated: #252526;
+  --color-vast-bg-hover: #2a2d2e;
+  --color-vast-border: #3c3c3c;
+  --color-vast-fg: #cccccc;
+  --color-vast-fg-muted: #858585;
+  --color-vast-accent: #0078d4;
+  --color-vast-accent-hover: #1a86d9;
+  --color-vast-status: #007acc;
+  --color-vast-tab-active: #1e1e1e;
+  --color-vast-sidebar: #252526;
+  --color-vast-activity: #333333;
+  --color-vast-terminal: #1e1e1e;
+  --color-vast-ai: #252526;
+  --color-vast-green: #4ec9b0;
+  --color-vast-purple: #c586c0;
+  --color-vast-orange: #ce9178;
+  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), "JetBrains Mono", ui-monospace, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-vast-bg);
+  color: var(--color-vast-fg);
+  font-family: var(--font-sans);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-vast-accent) 40%, transparent);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #424242;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.prose-vast h2 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-vast-fg);
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.prose-vast ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+  color: var(--color-vast-fg-muted);
+}
+
+.prose-vast li {
+  margin: 0.25rem 0;
+}
+
+.prose-vast p {
+  color: var(--color-vast-fg-muted);
+  line-height: 1.65;
+}

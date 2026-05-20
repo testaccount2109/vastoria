@@ -1,0 +1,63 @@
+{
+	email admin@vastoria.online
+}
+
+vastoria.online, www.vastoria.online {
+	encode gzip zstd
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	@www host www.vastoria.online
+	redir @www https://vastoria.online{uri} permanent
+
+	handle /api {
+		uri strip_prefix /api
+		reverse_proxy 127.0.0.1:18430
+	}
+
+	handle /api/* {
+		uri strip_prefix /api
+		reverse_proxy 127.0.0.1:18430
+	}
+
+	handle /downloads/windows/latest.json {
+		rewrite * /releases/latest
+		reverse_proxy 127.0.0.1:18430
+	}
+
+	handle /downloads/windows/releases.json {
+		rewrite * /releases
+		reverse_proxy 127.0.0.1:18430
+	}
+
+	handle /downloads/windows/CHANGELOG.md {
+		root * /var/www/vastoria
+		rewrite * /CHANGELOG.md
+		file_server
+	}
+
+	handle /downloads/windows/v*/* {
+		uri strip_prefix /downloads/windows
+		reverse_proxy 127.0.0.1:18430
+	}
+
+	handle /downloads/windows {
+		rewrite * /downloads/windows
+		reverse_proxy 127.0.0.1:18430
+	}
+
+	handle /downloads/windows/ {
+		rewrite * /downloads/windows
+		reverse_proxy 127.0.0.1:18430
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:3000
+	}
+}

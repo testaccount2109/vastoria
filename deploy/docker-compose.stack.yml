@@ -1,0 +1,57 @@
+# Full LOCAL dev stack (IDE machine) — includes ai-backend + Ollama hook.
+# Production cloud deploy uses deploy/docker-compose.cloud.yml (AI-free).
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: vastoria
+      POSTGRES_PASSWORD: vastoria
+      POSTGRES_DB: vastoria
+    ports:
+      - "5432:5432"
+    volumes:
+      - vastoria_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vastoria"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  cloud-api:
+    build:
+      context: ../apps/cloud-api
+      dockerfile: deploy/Dockerfile
+    environment:
+      VASTORIA_ENV: development
+      HOST: 0.0.0.0
+      PORT: 18430
+      DATABASE_URL: postgresql://vastoria:vastoria@postgres:5432/vastoria
+      PUBLIC_BASE_URL: http://127.0.0.1:18430
+      DOWNLOADS_BASE_URL: http://127.0.0.1:18430
+      SEED_RELEASES_ON_STARTUP: "true"
+      SEED_MODELS_ON_STARTUP: "false"
+    ports:
+      - "18430:18430"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  ai-backend:
+    build:
+      context: ../apps/ai-backend
+      dockerfile: deploy/Dockerfile
+    environment:
+      HOST: 0.0.0.0
+      PORT: 18420
+      OLLAMA_URL: http://host.docker.internal:11434
+      DATABASE_URL: postgresql://vastoria:vastoria@postgres:5432/vastoria
+    ports:
+      - "18420:18420"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  vastoria_pg:

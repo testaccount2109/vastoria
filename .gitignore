@@ -1,0 +1,6 @@
+dist/builds/
+tooling/build/.env
+node_modules/
+.next/
+dist/
+target/

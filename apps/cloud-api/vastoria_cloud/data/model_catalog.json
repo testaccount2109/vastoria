@@ -1,0 +1,46 @@
+[
+  {
+    "model_id": "qwen2.5-coder:7b",
+    "name": "Qwen 2.5 Coder 7B",
+    "provider": "ollama",
+    "family": "qwen2.5",
+    "parameter_size": "7B",
+    "context_length": 32768,
+    "description": "Strong local coding model for completion and chat in Vastoria IDE.",
+    "tags": { "coding": 9, "design": 4, "reasoning": 7 },
+    "is_active": true
+  },
+  {
+    "model_id": "deepseek-r1:8b",
+    "name": "DeepSeek R1 8B",
+    "provider": "ollama",
+    "family": "deepseek",
+    "parameter_size": "8B",
+    "context_length": 65536,
+    "description": "Reasoning-focused model for architecture and debugging sessions.",
+    "tags": { "coding": 7, "design": 3, "reasoning": 9 },
+    "is_active": true
+  },
+  {
+    "model_id": "llama3.2:3b",
+    "name": "Llama 3.2 3B",
+    "provider": "ollama",
+    "family": "llama3",
+    "parameter_size": "3B",
+    "context_length": 8192,
+    "description": "Lightweight general model for low-VRAM CachyOS workstations.",
+    "tags": { "coding": 5, "design": 5, "reasoning": 5 },
+    "is_active": true
+  },
+  {
+    "model_id": "mistral:7b",
+    "name": "Mistral 7B",
+    "provider": "ollama",
+    "family": "mistral",
+    "parameter_size": "7B",
+    "context_length": 32768,
+    "description": "Balanced assistant for docs, refactors, and quick edits.",
+    "tags": { "coding": 7, "design": 6, "reasoning": 7 },
+    "is_active": true
+  }
+]

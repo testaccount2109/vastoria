@@ -1,0 +1,28 @@
+Vastoria — Windows x64 distribution
+===================================
+
+Optimized for Windows 11 (primary) and Windows 10 (secondary).
+
+Recommended install
+-------------------
+  1. Download Vastoria-*-x64-setup.exe from vastoria.online/downloads
+  2. Run the installer (creates Start Menu shortcut and uninstall entry)
+  3. Launch Vastoria from the Start Menu or desktop shortcut
+
+Portable use
+------------
+  Run Vastoria-*-x64-portable.exe from any folder — no installer required.
+  Settings and recent projects are stored under:
+    %LOCALAPPDATA%\Vastoria\
+
+System requirements
+-------------------
+  - Windows 10 version 1903+ or Windows 11
+  - x64 processor
+  - 4 GB RAM minimum, 8 GB recommended
+  - Microsoft Edge WebView2 Runtime (bundled by installer when needed)
+
+Terminal
+--------
+  Integrated terminal uses Windows Terminal, PowerShell 7, or Command Prompt
+  (first available). Optional Git Bash: set VASTORIA_TERMINAL_SHELL=git-bash.

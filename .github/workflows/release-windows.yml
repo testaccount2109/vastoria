@@ -1,0 +1,266 @@
+name: Release Windows
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Semver, without v prefix (example: 1.0.0)"
+        required: false
+      prerelease:
+        description: "Mark as prerelease"
+        type: boolean
+        default: false
+      deploy:
+        description: "Upload artifacts and metadata to the Linux server"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-windows-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_BUILD_JOBS: 2
+  NODE_OPTIONS: --max-old-space-size=4096
+  DOWNLOADS_BASE_URL: https://vastoria.online/downloads
+  WINDOWS_DOWNLOAD_ROOT: /var/www/vastoria/downloads/windows
+
+jobs:
+  build:
+    name: Build Tauri Windows app
+    runs-on: windows-latest
+    timeout-minutes: 120
+    outputs:
+      version: ${{ steps.resolve_version.outputs.version }}
+      tag: ${{ steps.resolve_version.outputs.tag }}
+      prerelease: ${{ steps.resolve_version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release version
+        id: resolve_version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            TAG="${GITHUB_REF_NAME}"
+          elif [[ -n "${{ inputs.version }}" ]]; then
+            VERSION="${{ inputs.version }}"
+            TAG="v${VERSION}"
+          else
+            VERSION="$(python -c "import json; print(json.load(open('apps/ide/src-tauri/tauri.conf.json'))['version'])")"
+            TAG="v${VERSION}"
+          fi
+          if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid semantic version: ${VERSION}" >&2
+            exit 1
+          fi
+          PRERELEASE="${{ github.event_name == 'workflow_dispatch' && inputs.prerelease && '1' || '0' }}"
+          if [[ "${VERSION}" == *-* ]]; then
+            PRERELEASE="1"
+          fi
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "GITHUB_RELEASE_TAG=${TAG}" >> "$GITHUB_ENV"
+          echo "PRERELEASE=${PRERELEASE}" >> "$GITHUB_ENV"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "prerelease=${PRERELEASE}" >> "$GITHUB_OUTPUT"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Configure Visual Studio C++ environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Cache Cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\AppData\Local\cargo\registry
+            ~\AppData\Local\cargo\git
+            apps\ide\src-tauri\target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('apps/ide/src-tauri/Cargo.lock', 'apps/ide/src-tauri/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install pnpm dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Setup.exe, Portable.exe, and MSI
+        shell: pwsh
+        env:
+          SKIP_UPLOAD: "1"
+        run: ./tooling/build/scripts/build-windows.ps1
+
+      - name: Upload Windows build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vastoria-windows-${{ steps.resolve_version.outputs.version }}
+          path: dist/builds/${{ steps.resolve_version.outputs.version }}/*
+          if-no-files-found: error
+
+  deploy:
+    name: Upload to Linux server
+    needs: build
+    runs-on: ubuntu-22.04
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.deploy)
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: vastoria-windows-${{ needs.build.outputs.version }}
+          path: dist/builds/${{ needs.build.outputs.version }}
+
+      - name: Validate SSH secrets
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          test -n "$VPS_HOST"
+          test -n "$VPS_USER"
+          test -n "$VPS_SSH_KEY"
+          test -n "$VPS_PORT" || echo "VPS_PORT=22" >> "$GITHUB_ENV"
+
+      - name: Configure SSH key
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/vastoria_release_key
+          chmod 600 ~/.ssh/vastoria_release_key
+          ssh-keyscan -p "${{ secrets.VPS_PORT || '22' }}" "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Fetch existing release metadata
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT || '22' }}
+        run: |
+          mkdir -p dist/release-metadata-existing
+          ssh -i ~/.ssh/vastoria_release_key -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" \
+            "test -f '$WINDOWS_DOWNLOAD_ROOT/releases.json' && cat '$WINDOWS_DOWNLOAD_ROOT/releases.json' || true" \
+            > dist/release-metadata-existing/releases.json
+
+      - name: Generate latest.json, releases.json, and changelog
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+          GITHUB_REF_NAME: ${{ needs.build.outputs.tag }}
+          PRERELEASE: ${{ needs.build.outputs.prerelease }}
+        run: |
+          MANIFEST="dist/builds/${VERSION}/manifest.json"
+          test -f "$MANIFEST"
+          python3 tooling/build/scripts/generate-release-metadata.py \
+            --manifest "$MANIFEST" \
+            --out-dir dist/release-metadata \
+            --existing-releases dist/release-metadata-existing/releases.json \
+            --downloads-base-url "$DOWNLOADS_BASE_URL" \
+            --changelog-file CHANGELOG.md
+
+      - name: Upload release metadata artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vastoria-release-metadata-${{ needs.build.outputs.version }}
+          path: dist/release-metadata/*
+          if-no-files-found: error
+
+      - name: Upload artifacts and metadata over SSH
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          REMOTE_TMP="$WINDOWS_DOWNLOAD_ROOT/.incoming-${VERSION}-${GITHUB_RUN_ID}"
+          REMOTE_VERSION="$WINDOWS_DOWNLOAD_ROOT/v${VERSION}"
+          ssh -i ~/.ssh/vastoria_release_key -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" \
+            "mkdir -p '$REMOTE_TMP' '$REMOTE_VERSION'"
+          scp -i ~/.ssh/vastoria_release_key -P "$VPS_PORT" dist/builds/"$VERSION"/* \
+            "$VPS_USER@$VPS_HOST:$REMOTE_TMP/"
+          scp -i ~/.ssh/vastoria_release_key -P "$VPS_PORT" dist/release-metadata/latest.json dist/release-metadata/releases.json dist/release-metadata/CHANGELOG.md \
+            "$VPS_USER@$VPS_HOST:$REMOTE_TMP/"
+          ssh -i ~/.ssh/vastoria_release_key -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" \
+            "set -e; \
+             test -s '$REMOTE_TMP/manifest.json'; \
+             cp '$REMOTE_TMP'/Vastoria-${VERSION}-x64-* '$REMOTE_VERSION'/; \
+             cp '$REMOTE_TMP/manifest.json' '$REMOTE_VERSION'/; \
+             cp '$REMOTE_TMP/latest.json' '$WINDOWS_DOWNLOAD_ROOT/latest.json'; \
+             cp '$REMOTE_TMP/releases.json' '$WINDOWS_DOWNLOAD_ROOT/releases.json'; \
+             cp '$REMOTE_TMP/CHANGELOG.md' '$WINDOWS_DOWNLOAD_ROOT/CHANGELOG.md'; \
+             test -s '$WINDOWS_DOWNLOAD_ROOT/latest.json'; \
+             test -s '$WINDOWS_DOWNLOAD_ROOT/releases.json'; \
+             test -s '$REMOTE_VERSION/Vastoria-${VERSION}-x64-setup.exe'; \
+             test -s '$REMOTE_VERSION/Vastoria-${VERSION}-x64-portable.exe'; \
+             rm -rf '$REMOTE_TMP'"
+
+      - name: Verify public metadata and downloads
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error "$DOWNLOADS_BASE_URL/windows/latest.json" | tee /tmp/latest.json
+          python3 - <<'PY'
+          import os
+          import json
+          data = json.load(open("/tmp/latest.json", encoding="utf-8"))
+          release = data["release"]
+          assert release["version"] == os.environ["VERSION"], "latest.json version mismatch"
+          assert release["downloads"].get("installer"), "installer missing from latest.json"
+          assert release["downloads"].get("portable"), "portable missing from latest.json"
+          PY
+          curl --fail --head --silent --show-error "$DOWNLOADS_BASE_URL/windows/v${VERSION}/Vastoria-${VERSION}-x64-setup.exe" >/dev/null
+          curl --fail --head --silent --show-error "$DOWNLOADS_BASE_URL/windows/v${VERSION}/Vastoria-${VERSION}-x64-portable.exe" >/dev/null
+
+  github-release:
+    name: Create GitHub Release
+    needs: [build, deploy]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: vastoria-windows-${{ needs.build.outputs.version }}
+          path: dist/builds/${{ needs.build.outputs.version }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: vastoria-release-metadata-${{ needs.build.outputs.version }}
+          path: dist/release-metadata
+
+      - name: Create release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.build.outputs.tag }}
+          name: Vastoria v${{ needs.build.outputs.version }}
+          body_path: dist/release-metadata/RELEASE_NOTES.md
+          prerelease: ${{ needs.build.outputs.prerelease == '1' }}
+          fail_on_unmatched_files: true
+          files: |
+            dist/builds/${{ needs.build.outputs.version }}/*

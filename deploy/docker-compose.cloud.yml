@@ -1,0 +1,52 @@
+# Production cloud backend ONLY — no AI, no Ollama, no ai-backend
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: vastoria
+      POSTGRES_PASSWORD: vastoria
+      POSTGRES_DB: vastoria
+    volumes:
+      - vastoria_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vastoria"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  cloud-api:
+    build:
+      context: ../apps/cloud-api
+      dockerfile: deploy/Dockerfile
+    environment:
+      VASTORIA_ENV: production
+      HOST: 0.0.0.0
+      PORT: 18430
+      DATABASE_URL: postgresql://vastoria:vastoria@postgres:5432/vastoria
+      PUBLIC_BASE_URL: https://vastoria.online/api
+      DOWNLOADS_BASE_URL: https://vastoria.online/downloads
+      SEED_RELEASES_ON_STARTUP: "true"
+      SEED_MODELS_ON_STARTUP: "false"
+    ports:
+      - "127.0.0.1:18430:18430"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  website:
+    build:
+      context: ..
+      dockerfile: deploy/website/Dockerfile
+    environment:
+      VASTORIA_ENV: production
+      CLOUD_API_URL: http://cloud-api:18430
+      NEXT_PUBLIC_CLOUD_API_URL: https://vastoria.online/api
+      DOWNLOADS_BASE_URL: https://vastoria.online/downloads
+      NEXT_PUBLIC_DOWNLOADS_URL: https://vastoria.online/downloads
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - cloud-api
+
+volumes:
+  vastoria_pg:

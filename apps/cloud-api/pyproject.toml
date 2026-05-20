@@ -1,0 +1,42 @@
+[project]
+name = "vastoria-cloud"
+version = "0.1.0"
+description = "Vastoria cloud API — project sync and releases"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "packaging>=24.0",
+  "fastapi>=0.115.0",
+  "uvicorn[standard]>=0.32.0",
+  "pydantic>=2.10.0",
+  "pydantic-settings>=2.6.0",
+  "sqlalchemy[asyncio]>=2.0.36",
+  "asyncpg>=0.30.0",
+  "aiosqlite>=0.20.0",
+  "python-multipart>=0.0.17",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3.0", "pytest-asyncio>=0.24.0", "httpx>=0.28.0"]
+
+[project.scripts]
+vastoria-cloud = "vastoria_cloud.main:run"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["vastoria_cloud"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"vastoria_cloud/data" = "vastoria_cloud/data"
+
+[tool.hatch.build]
+include = [
+  "vastoria_cloud/data/*.json",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

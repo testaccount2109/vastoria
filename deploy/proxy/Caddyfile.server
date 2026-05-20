@@ -1,0 +1,41 @@
+# Vastoria single-domain server proxy.
+# Use deploy/proxy/Caddyfile for production HTTPS; this file is for local
+# smoke tests where automatic HTTPS is intentionally disabled.
+{
+	auto_https off
+}
+
+:80 {
+	encode gzip zstd
+
+	handle /api/* {
+		uri strip_prefix /api
+		reverse_proxy 127.0.0.1:18430 {
+			health_uri /health
+		}
+	}
+
+	handle /downloads/windows/v*/* {
+		root * /var/www/vastoria
+		file_server
+	}
+
+	handle /downloads/windows/latest.json {
+		root * /var/www/vastoria
+		file_server
+	}
+
+	handle /downloads/windows/releases.json {
+		root * /var/www/vastoria
+		file_server
+	}
+
+	handle /downloads/windows/CHANGELOG.md {
+		root * /var/www/vastoria
+		file_server
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:3000
+	}
+}

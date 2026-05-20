@@ -1,0 +1,16 @@
+{
+  "name": "vastoria",
+  "private": true,
+  "scripts": {
+    "ide:dev": "pnpm --filter @vastoria/ide dev",
+    "ide:build": "pnpm --filter @vastoria/ide build",
+    "web:dev": "pnpm --filter @vastoria/website dev",
+    "web:build": "pnpm --filter @vastoria/website build",
+    "build:windows": "pwsh -File tooling/build/scripts/build-windows.ps1",
+    "release:upload": "python3 tooling/build/scripts/upload-release.py",
+    "stack:up": "docker compose -f deploy/docker-compose.stack.yml up",
+    "stack:down": "docker compose -f deploy/docker-compose.stack.yml down",
+    "validate": "bash tooling/validate/system-validate.sh",
+    "release:publish": "bash tooling/validate/publish-release.sh"
+  }
+}

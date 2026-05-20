@@ -1,0 +1,30 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: vastoria
+      POSTGRES_PASSWORD: vastoria
+      POSTGRES_DB: vastoria_ai
+    ports:
+      - "5432:5432"
+    volumes:
+      - vastoria_pg:/var/lib/postgresql/data
+
+  ai-backend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    environment:
+      HOST: 0.0.0.0
+      PORT: 18420
+      DATABASE_URL: postgresql://vastoria:vastoria@postgres:5432/vastoria_ai
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+    ports:
+      - "18420:18420"
+    depends_on:
+      - postgres
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  vastoria_pg:

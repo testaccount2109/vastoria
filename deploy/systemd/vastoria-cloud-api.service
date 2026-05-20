@@ -1,0 +1,24 @@
+[Unit]
+Description=Vastoria Cloud API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/vastoria/apps/cloud-api
+Environment=VASTORIA_ENV=production
+Environment=HOST=127.0.0.1
+Environment=PORT=18430
+Environment=PUBLIC_BASE_URL=https://vastoria.online/api
+Environment=DOWNLOADS_BASE_URL=https://vastoria.online/downloads
+Environment=SQLITE_PATH=/root/vastoria/apps/cloud-api/.vastoria/cloud-api.db
+Environment=BLOB_STORAGE_PATH=/root/vastoria/apps/cloud-api/.vastoria/cloud-blobs
+Environment=ARTIFACT_STORAGE_PATH=/root/vastoria/apps/cloud-api/.vastoria/artifacts
+Environment=SEED_RELEASES_ON_STARTUP=true
+Environment=SEED_MODELS_ON_STARTUP=false
+ExecStart=/root/vastoria/apps/cloud-api/.venv/bin/vastoria-cloud
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
