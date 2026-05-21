@@ -13,9 +13,53 @@ def isolated_env(tmp_path, monkeypatch):
     db_file = tmp_path / "test.db"
     blob_dir = tmp_path / "blobs"
     artifact_dir = tmp_path / "artifacts"
+    release_metadata = tmp_path / "releases.json"
+    release_metadata.write_text(
+        """
+{
+  "releases": [
+    {
+      "version": "9.8.7",
+      "published_at": "2026-05-21T12:00:00Z",
+      "prerelease": false,
+      "tags": ["windows", "test"],
+      "recommended": true,
+      "changelog": "## 9.8.7\\n\\n- Test release metadata",
+      "downloads": {
+        "installer": {
+          "url": "https://vastoria.online/downloads/windows/v9.8.7/Vastoria-9.8.7-x64-setup.exe",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "size_bytes": 100,
+          "recommended": true,
+          "platform": "windows_x86_64"
+        },
+        "portable": {
+          "url": "https://vastoria.online/downloads/windows/v9.8.7/Vastoria-9.8.7-x64-portable.exe",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "size_bytes": 90,
+          "recommended": false,
+          "platform": "windows_x86_64"
+        },
+        "msi": {
+          "url": "https://vastoria.online/downloads/windows/v9.8.7/Vastoria-9.8.7-x64.msi",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "size_bytes": 95,
+          "recommended": false,
+          "platform": "windows_x86_64"
+        }
+      }
+    }
+  ],
+  "total": 1
+}
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
     monkeypatch.setenv("SQLITE_PATH", str(db_file))
     monkeypatch.setenv("BLOB_STORAGE_PATH", str(blob_dir))
     monkeypatch.setenv("ARTIFACT_STORAGE_PATH", str(artifact_dir))
+    monkeypatch.setenv("RELEASE_METADATA_PATH", str(release_metadata))
     monkeypatch.setenv("PUBLIC_BASE_URL", "http://test")
     monkeypatch.setenv("SEED_RELEASES_ON_STARTUP", "false")
     monkeypatch.setenv("SEED_MODELS_ON_STARTUP", "false")

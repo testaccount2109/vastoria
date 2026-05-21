@@ -22,16 +22,19 @@
 
 	handle /downloads/windows/latest.json {
 		root * /var/www/vastoria
+		header Cache-Control "no-store"
 		file_server
 	}
 
 	handle /downloads/windows/releases.json {
 		root * /var/www/vastoria
+		header Cache-Control "no-store"
 		file_server
 	}
 
 	handle /downloads/windows/CHANGELOG.md {
 		root * /var/www/vastoria
+		header Cache-Control "no-cache"
 		file_server
 	}
 

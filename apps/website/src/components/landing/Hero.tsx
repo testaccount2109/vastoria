@@ -9,7 +9,7 @@ interface HeroProps {
   latestVersion?: string;
 }
 
-export function Hero({ latestVersion = "0.1.0" }: HeroProps) {
+export function Hero({ latestVersion }: HeroProps) {
   return (
     <section className="relative overflow-hidden">
       <motion.div
@@ -65,7 +65,7 @@ export function Hero({ latestVersion = "0.1.0" }: HeroProps) {
           >
             <Button href="/downloads" size="lg">
               <Download className="h-4 w-4" />
-              Download v{latestVersion}
+              {latestVersion ? `Download v${latestVersion}` : "Download"}
             </Button>
             <Button href="/docs" variant="secondary" size="lg">
               Read the docs

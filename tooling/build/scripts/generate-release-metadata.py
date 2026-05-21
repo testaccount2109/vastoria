@@ -81,6 +81,38 @@ def load_existing(path: Path | None) -> list[dict[str, Any]]:
         return []
 
 
+def normalize_version(value: str) -> str:
+    return value.strip().lstrip("v")
+
+
+def validate_release_identity(manifest: dict[str, Any], version: str, tag: str) -> None:
+    manifest_version = normalize_version(str(manifest.get("version", "")))
+    tag_version = normalize_version(tag)
+    if not version:
+        raise ValueError("Release version is required")
+    if manifest_version and manifest_version != version:
+        raise ValueError(
+            f"Manifest version {manifest_version} does not match release version {version}"
+        )
+    if tag_version and tag_version != version:
+        raise ValueError(f"Tag {tag} does not match release version {version}")
+
+
+def validate_required_assets(manifest: dict[str, Any]) -> None:
+    missing = [
+        key
+        for key in ("installer", "portable", "msi")
+        if not isinstance(manifest.get(key), dict)
+    ]
+    if missing:
+        raise ValueError(f"Manifest missing required Windows assets: {', '.join(missing)}")
+    for key in ("installer", "portable", "msi"):
+        item = manifest[key]
+        for field in ("filename", "sha256", "size_bytes"):
+            if not item.get(field):
+                raise ValueError(f"Manifest asset {key} missing {field}")
+
+
 def asset(manifest: dict[str, Any], key: str, base_url: str, version: str, recommended: bool) -> dict[str, Any] | None:
     item = manifest.get(key)
     if not item:
@@ -99,8 +131,11 @@ def asset(manifest: dict[str, Any], key: str, base_url: str, version: str, recom
 def main() -> int:
     args = parse_args()
     manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
-    version = (args.version or manifest["version"]).lstrip("v")
-    tag = args.tag or f"v{version}"
+    tag = args.tag or os.environ.get("GITHUB_REF_NAME") or ""
+    version = normalize_version(args.version or tag or manifest["version"])
+    tag = tag or f"v{version}"
+    validate_release_identity(manifest, version, tag)
+    validate_required_assets(manifest)
     published_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     changelog = changelog_from_file(args.changelog_file, version) or changelog_from_git(version, tag)
 

@@ -1,6 +1,9 @@
 import json
 from datetime import datetime, timezone
+from pathlib import Path
+from urllib.parse import urlparse
 
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -42,6 +45,48 @@ class ReleaseService:
             return cdn
         base = self._settings.public_base_url.rstrip("/")
         return f"{base}/downloads/artifacts/{artifact_id}/file"
+
+    def _static_release_metadata(self) -> list[Release]:
+        path = Path(self._settings.release_metadata_path)
+        if not path.is_file():
+            return []
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return []
+
+        releases = raw.get("releases") if isinstance(raw, dict) else raw
+        if not isinstance(releases, list):
+            return []
+
+        parsed: list[Release] = []
+        for item in releases:
+            try:
+                parsed.append(Release.model_validate(item))
+            except ValidationError:
+                continue
+        return parsed
+
+    def _static_release_detail(self, release: Release) -> ReleaseDetail:
+        artifacts: list[ArtifactInfo] = []
+        for artifact_type in ("installer", "portable", "msi"):
+            asset = getattr(release.downloads, artifact_type)
+            if asset is None:
+                continue
+            filename = Path(urlparse(asset.url).path).name
+            artifacts.append(
+                ArtifactInfo(
+                    id=0,
+                    artifact_type=artifact_type,
+                    platform=asset.platform,
+                    filename=filename,
+                    sha256=asset.sha256,
+                    size_bytes=asset.size_bytes,
+                    recommended=asset.recommended,
+                    download_url=asset.url,
+                )
+            )
+        return ReleaseDetail(**release.model_dump(), artifacts=artifacts)
 
     def _row_to_release(self, row: ReleaseRow) -> Release:
         downloads = ReleaseDownloads()
@@ -96,6 +141,21 @@ class ReleaseService:
         include_prerelease: bool = True,
         windows_only: bool = True,
     ) -> list[Release]:
+        static_releases = self._static_release_metadata()
+        if static_releases:
+            releases = static_releases
+            if not include_prerelease:
+                releases = [r for r in releases if not r.prerelease]
+            if windows_only:
+                releases = [
+                    r
+                    for r in releases
+                    if r.downloads.installer is not None
+                    or r.downloads.portable is not None
+                    or r.downloads.msi is not None
+                ]
+            return releases
+
         stmt = (
             select(ReleaseRow)
             .options(selectinload(ReleaseRow.artifacts))
@@ -116,6 +176,11 @@ class ReleaseService:
         return releases
 
     async def get_release(self, version: str) -> ReleaseDetail | None:
+        normalized = version.removeprefix("v")
+        for release in self._static_release_metadata():
+            if release.version.removeprefix("v") == normalized:
+                return self._static_release_detail(release)
+
         stmt = (
             select(ReleaseRow)
             .where(ReleaseRow.version == version)

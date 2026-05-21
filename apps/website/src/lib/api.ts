@@ -1,6 +1,5 @@
 import {
   CLOUD_API,
-  buildDownloadArtifactUrl,
   fetchWithRetry,
   joinUrl,
   resolveCloudApiUrl,
@@ -29,43 +28,6 @@ function getDownloadsBase(): string {
     resolveDownloadsUrl()
   );
 }
-
-function fallbackDownloads(version: string) {
-  const v = version.startsWith("v") ? version.slice(1) : version;
-  return {
-    installer: {
-      url: buildDownloadArtifactUrl(
-        version,
-        `Vastoria-${v}-x64-setup.exe`,
-        getDownloadsBase(),
-      ),
-      sha256: "a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456",
-      size_bytes: 89456640,
-      recommended: true,
-    },
-    portable: {
-      url: buildDownloadArtifactUrl(
-        version,
-        `Vastoria-${v}-x64-portable.exe`,
-        getDownloadsBase(),
-      ),
-      sha256: "fedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321",
-      size_bytes: 82145280,
-    },
-  };
-}
-
-const FALLBACK_RELEASES: Release[] = [
-  {
-    version: "0.1.0",
-    published_at: "2026-05-10T12:00:00Z",
-    prerelease: false,
-    changelog:
-      "## 0.1.0 — Initial release\n\n- Native Windows AI IDE\n- Monaco editor & integrated terminal\n- PowerShell, Windows Terminal, and CMD\n- AI panel for local Ollama backend",
-    recommended: true,
-    downloads: fallbackDownloads("0.1.0"),
-  },
-];
 
 function apiUrl(path: string): string {
   return joinUrl(getApiBase(), path);
@@ -133,7 +95,7 @@ export async function fetchReleases(
     );
     return data.releases;
   } catch {
-    return FALLBACK_RELEASES;
+    return [];
   }
 }
 
@@ -155,8 +117,8 @@ export async function fetchLatestRelease(
       `${CLOUD_API.releasesLatest}?include_prerelease=${includePrerelease}`,
     );
     return data.release;
-  } catch {
-    return FALLBACK_RELEASES[0];
+  } catch (error) {
+    throw new Error("Unable to load current release metadata", { cause: error });
   }
 }
 
@@ -186,15 +148,7 @@ export async function fetchLatestDownload(
       `${CLOUD_API.downloadsLatest}?stable_only=${stableOnly}`,
     );
   } catch {
-    const release = FALLBACK_RELEASES[0];
-    if (!release.downloads.installer) return null;
-    return {
-      version: release.version,
-      platform: "windows_x86_64",
-      recommended: true,
-      prerelease: release.prerelease,
-      downloads: release.downloads,
-    };
+    return null;
   }
 }
 
@@ -211,7 +165,7 @@ export async function fetchRelease(version: string): Promise<Release | null> {
   try {
     return await apiFetch<Release>(CLOUD_API.release(version));
   } catch {
-    return FALLBACK_RELEASES.find((r) => r.version === version) ?? null;
+    return null;
   }
 }
 

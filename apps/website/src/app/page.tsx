@@ -3,6 +3,8 @@ import { Features } from "@/components/landing/Features";
 import { Hero } from "@/components/landing/Hero";
 import { fetchLatestRelease } from "@/lib/api";
 
+export const dynamic = "force-dynamic";
+
 export default async function HomePage() {
   const latest = await fetchLatestRelease();
 

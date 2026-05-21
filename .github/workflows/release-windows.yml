@@ -182,7 +182,9 @@ jobs:
             --out-dir dist/release-metadata \
             --existing-releases dist/release-metadata-existing/releases.json \
             --downloads-base-url "$DOWNLOADS_BASE_URL" \
-            --changelog-file CHANGELOG.md
+            --changelog-file CHANGELOG.md \
+            --version "$VERSION" \
+            --tag "$GITHUB_REF_NAME"
 
       - name: Upload release metadata artifact
         uses: actions/upload-artifact@v4
@@ -201,43 +203,69 @@ jobs:
           set -euo pipefail
           REMOTE_TMP="$WINDOWS_DOWNLOAD_ROOT/.incoming-${VERSION}-${GITHUB_RUN_ID}"
           REMOTE_VERSION="$WINDOWS_DOWNLOAD_ROOT/v${VERSION}"
+          INSTALLER="Vastoria-${VERSION}-x64-setup.exe"
+          PORTABLE="Vastoria-${VERSION}-x64-portable.exe"
+          MSI="Vastoria-${VERSION}-x64.msi"
+          test -s "dist/builds/${VERSION}/${INSTALLER}"
+          test -s "dist/builds/${VERSION}/${PORTABLE}"
+          test -s "dist/builds/${VERSION}/${MSI}"
+          test -s "dist/release-metadata/latest.json"
+          test -s "dist/release-metadata/releases.json"
+          test -s "dist/release-metadata/CHANGELOG.md"
           ssh -i ~/.ssh/vastoria_release_key -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" \
             "mkdir -p '$REMOTE_TMP' '$REMOTE_VERSION'"
-          scp -i ~/.ssh/vastoria_release_key -P "$VPS_PORT" dist/builds/"$VERSION"/* \
+          scp -i ~/.ssh/vastoria_release_key -P "$VPS_PORT" \
+            "dist/builds/${VERSION}/${INSTALLER}" \
+            "dist/builds/${VERSION}/${PORTABLE}" \
+            "dist/builds/${VERSION}/${MSI}" \
+            "dist/builds/${VERSION}/manifest.json" \
             "$VPS_USER@$VPS_HOST:$REMOTE_TMP/"
-          scp -i ~/.ssh/vastoria_release_key -P "$VPS_PORT" dist/release-metadata/latest.json dist/release-metadata/releases.json dist/release-metadata/CHANGELOG.md \
+          scp -i ~/.ssh/vastoria_release_key -P "$VPS_PORT" \
+            dist/release-metadata/latest.json \
+            dist/release-metadata/releases.json \
+            dist/release-metadata/CHANGELOG.md \
             "$VPS_USER@$VPS_HOST:$REMOTE_TMP/"
           ssh -i ~/.ssh/vastoria_release_key -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" \
             "set -e; \
              test -s '$REMOTE_TMP/manifest.json'; \
-             cp '$REMOTE_TMP'/Vastoria-${VERSION}-x64-* '$REMOTE_VERSION'/; \
+             install -m 644 '$REMOTE_TMP/$INSTALLER' '$REMOTE_VERSION/$INSTALLER'; \
+             install -m 644 '$REMOTE_TMP/$PORTABLE' '$REMOTE_VERSION/$PORTABLE'; \
+             install -m 644 '$REMOTE_TMP/$MSI' '$REMOTE_VERSION/$MSI'; \
              cp '$REMOTE_TMP/manifest.json' '$REMOTE_VERSION'/; \
-             cp '$REMOTE_TMP/latest.json' '$WINDOWS_DOWNLOAD_ROOT/latest.json'; \
-             cp '$REMOTE_TMP/releases.json' '$WINDOWS_DOWNLOAD_ROOT/releases.json'; \
-             cp '$REMOTE_TMP/CHANGELOG.md' '$WINDOWS_DOWNLOAD_ROOT/CHANGELOG.md'; \
+             install -m 644 '$REMOTE_TMP/latest.json' '$WINDOWS_DOWNLOAD_ROOT/latest.json'; \
+             install -m 644 '$REMOTE_TMP/releases.json' '$WINDOWS_DOWNLOAD_ROOT/releases.json'; \
+             install -m 644 '$REMOTE_TMP/CHANGELOG.md' '$WINDOWS_DOWNLOAD_ROOT/CHANGELOG.md'; \
              test -s '$WINDOWS_DOWNLOAD_ROOT/latest.json'; \
              test -s '$WINDOWS_DOWNLOAD_ROOT/releases.json'; \
-             test -s '$REMOTE_VERSION/Vastoria-${VERSION}-x64-setup.exe'; \
-             test -s '$REMOTE_VERSION/Vastoria-${VERSION}-x64-portable.exe'; \
+             test -s '$WINDOWS_DOWNLOAD_ROOT/CHANGELOG.md'; \
+             test -s '$REMOTE_VERSION/$INSTALLER'; \
+             test -s '$REMOTE_VERSION/$PORTABLE'; \
+             test -s '$REMOTE_VERSION/$MSI'; \
              rm -rf '$REMOTE_TMP'"
 
       - name: Verify public metadata and downloads
         env:
           VERSION: ${{ needs.build.outputs.version }}
+          GITHUB_REF_NAME: ${{ needs.build.outputs.tag }}
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error "$DOWNLOADS_BASE_URL/windows/latest.json" | tee /tmp/latest.json
+          curl --fail --silent --show-error \
+            -H "Cache-Control: no-cache" \
+            "$DOWNLOADS_BASE_URL/windows/latest.json?run=${GITHUB_RUN_ID}" | tee /tmp/latest.json
           python3 - <<'PY'
           import os
           import json
           data = json.load(open("/tmp/latest.json", encoding="utf-8"))
           release = data["release"]
-          assert release["version"] == os.environ["VERSION"], "latest.json version mismatch"
+          expected = os.environ["GITHUB_REF_NAME"].removeprefix("v")
+          assert release["version"] == expected, f"latest.json version mismatch: {release['version']} != {expected}"
           assert release["downloads"].get("installer"), "installer missing from latest.json"
           assert release["downloads"].get("portable"), "portable missing from latest.json"
+          assert release["downloads"].get("msi"), "msi missing from latest.json"
           PY
           curl --fail --head --silent --show-error "$DOWNLOADS_BASE_URL/windows/v${VERSION}/Vastoria-${VERSION}-x64-setup.exe" >/dev/null
           curl --fail --head --silent --show-error "$DOWNLOADS_BASE_URL/windows/v${VERSION}/Vastoria-${VERSION}-x64-portable.exe" >/dev/null
+          curl --fail --head --silent --show-error "$DOWNLOADS_BASE_URL/windows/v${VERSION}/Vastoria-${VERSION}-x64.msi" >/dev/null
 
   github-release:
     name: Create GitHub Release

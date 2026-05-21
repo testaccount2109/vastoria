@@ -25,11 +25,11 @@ async def test_latest_release(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_get_release_by_version(client: AsyncClient):
-    res = await client.get("/releases/0.1.0")
+    res = await client.get("/releases/9.8.7")
     assert res.status_code == 200
     body = res.json()
-    assert body["version"] == "0.1.0"
-    assert len(body["artifacts"]) >= 2
+    assert body["version"] == "9.8.7"
+    assert len(body["artifacts"]) == 3
 
 
 @pytest.mark.asyncio

@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   description: "Vastoria release history, changelogs, and download links.",
 };
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export default async function ReleasesPage() {
   const releases = await fetchReleases(true);

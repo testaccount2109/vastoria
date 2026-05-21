@@ -27,6 +27,7 @@ class Settings(BaseSettings):
 
     public_base_url: str = "https://vastoria.online/api"
     downloads_base_url: str = _default_downloads_base()
+    release_metadata_path: str = "/var/www/vastoria/downloads/windows/releases.json"
 
     cors_origins: list[str] = [
         "http://localhost:1420",

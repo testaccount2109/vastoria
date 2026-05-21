@@ -27,24 +27,26 @@ vastoria.online, www.vastoria.online {
 	}
 
 	handle /downloads/windows/latest.json {
-		rewrite * /releases/latest
-		reverse_proxy 127.0.0.1:18430
+		root * /var/www/vastoria
+		header Cache-Control "no-store"
+		file_server
 	}
 
 	handle /downloads/windows/releases.json {
-		rewrite * /releases
-		reverse_proxy 127.0.0.1:18430
+		root * /var/www/vastoria
+		header Cache-Control "no-store"
+		file_server
 	}
 
 	handle /downloads/windows/CHANGELOG.md {
 		root * /var/www/vastoria
-		rewrite * /CHANGELOG.md
+		header Cache-Control "no-cache"
 		file_server
 	}
 
 	handle /downloads/windows/v*/* {
-		uri strip_prefix /downloads/windows
-		reverse_proxy 127.0.0.1:18430
+		root * /var/www/vastoria
+		file_server
 	}
 
 	handle /downloads/windows {
