@@ -30,6 +30,21 @@ body,
   margin: 0;
 }
 
+html {
+  font-size: calc(var(--vast-font-size, 13px) * var(--vast-ui-scale, 1));
+}
+
+html[data-theme="light"] {
+  color-scheme: light;
+}
+
+html[data-animations="off"] *,
+html[data-animations="off"] *::before,
+html[data-animations="off"] *::after {
+  transition-duration: 0ms !important;
+  animation-duration: 0ms !important;
+}
+
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;

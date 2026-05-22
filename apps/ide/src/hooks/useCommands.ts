@@ -18,6 +18,7 @@ export function useCommands() {
   const toggleSidebar = useLayoutStore((s) => s.toggleSidebar);
   const toggleAiPanel = useLayoutStore((s) => s.toggleAiPanel);
   const toggleTerminal = useLayoutStore((s) => s.toggleTerminal);
+  const openSettings = useLayoutStore((s) => s.openSettings);
   const createSession = useTerminalStore((s) => s.createSession);
   const rootPath = useWorkspaceStore((s) => s.rootPath);
   const syncPush = useSyncStore((s) => s.push);
@@ -52,6 +53,13 @@ export function useCommands() {
         category: "View",
         shortcut: "Ctrl+`",
         action: toggleTerminal,
+      },
+      {
+        id: "workbench.openSettings",
+        label: "Open Settings",
+        category: "Preferences",
+        shortcut: "Ctrl+,",
+        action: openSettings,
       },
       {
         id: "editor.splitRight",
@@ -109,6 +117,7 @@ export function useCommands() {
     toggleSidebar,
     toggleAiPanel,
     toggleTerminal,
+    openSettings,
     createSession,
     saveTab,
     groups,
@@ -145,6 +154,12 @@ export function useKeyboardShortcuts() {
       if (mod && e.key === "b" && !e.shiftKey) {
         e.preventDefault();
         void execute("view.toggleSidebar");
+        return;
+      }
+
+      if (mod && e.key === "," && !e.shiftKey) {
+        e.preventDefault();
+        void execute("workbench.openSettings");
         return;
       }
 

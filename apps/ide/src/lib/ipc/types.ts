@@ -55,3 +55,38 @@ export interface DiffEdit {
   original: string;
   modified: string;
 }
+
+export interface OllamaStatus {
+  installed: boolean;
+  executablePath?: string;
+  serviceRunning: boolean;
+  version?: string;
+  installCandidates: string[];
+}
+
+export interface OllamaModel {
+  name: string;
+  id: string;
+  size: string;
+  modified: string;
+  running: boolean;
+  processor?: string;
+  until?: string;
+}
+
+export interface OllamaProgressEvent {
+  model: string;
+  action: string;
+  line: string;
+  done: boolean;
+  error?: string;
+}
+
+export interface RuntimeInfo {
+  appVersion: string;
+  os: string;
+  arch: string;
+  cpuCount: number;
+  rustTarget: string;
+  ollamaStorageBytes: number;
+}

@@ -4,12 +4,14 @@ import { Sidebar } from "./Sidebar";
 import { EditorArea } from "@/components/editor/EditorArea";
 import { AiPanel } from "@/components/ai/AiPanel";
 import { TerminalPanel } from "@/components/terminal/TerminalPanel";
+import { SettingsView } from "@/components/settings/SettingsView";
 import { CommandPalette } from "./CommandPalette";
 import { StatusBar } from "./StatusBar";
 import { Resizer } from "@/components/ui/Resizer";
 import { useLayoutStore } from "@/stores/layoutStore";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useTerminalStore } from "@/stores/terminalStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 import { useCommands, useKeyboardShortcuts } from "@/hooks/useCommands";
 
 export function AppShell() {
@@ -22,6 +24,7 @@ export function AppShell() {
   const terminalVisible = useLayoutStore((s) => s.terminalVisible);
   const terminalHeight = useLayoutStore((s) => s.terminalHeight);
   const setTerminalHeight = useLayoutStore((s) => s.setTerminalHeight);
+  const activeWorkbench = useLayoutStore((s) => s.activeWorkbench);
 
   const loadRecent = useWorkspaceStore((s) => s.loadRecent);
   const rootPath = useWorkspaceStore((s) => s.rootPath);
@@ -30,6 +33,7 @@ export function AppShell() {
 
   useCommands();
   useKeyboardShortcuts();
+  useSettingsEffects();
 
   useEffect(() => {
     void loadRecent();
@@ -46,7 +50,7 @@ export function AppShell() {
       <div className="flex min-h-0 flex-1">
         <ActivityBar />
 
-        {sidebarVisible && (
+        {activeWorkbench === "editor" && sidebarVisible && (
           <>
             <div
               className="shrink-0 overflow-hidden border-r border-vast-border"
@@ -63,8 +67,8 @@ export function AppShell() {
 
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex min-h-0 flex-1 flex-row">
-            <EditorArea />
-            {aiPanelVisible && (
+            {activeWorkbench === "settings" ? <SettingsView /> : <EditorArea />}
+            {activeWorkbench === "editor" && aiPanelVisible && (
               <>
                 <Resizer
                   direction="horizontal"
@@ -79,7 +83,7 @@ export function AppShell() {
             )}
           </div>
 
-          {terminalVisible && (
+          {activeWorkbench === "editor" && terminalVisible && (
             <>
               <Resizer
                 direction="vertical"
@@ -102,4 +106,18 @@ export function AppShell() {
       <CommandPalette />
     </div>
   );
+}
+
+function useSettingsEffects() {
+  const appearance = useSettingsStore((s) => s.appearance);
+  const performance = useSettingsStore((s) => s.performance);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty("--vast-accent-runtime", appearance.accentColor);
+    root.style.setProperty("--vast-ui-scale", String(appearance.uiScale));
+    root.style.setProperty("--vast-font-size", `${appearance.fontSize}px`);
+    root.dataset.theme = appearance.theme;
+    root.dataset.animations = performance.animations ? "on" : "off";
+  }, [appearance, performance.animations]);
 }

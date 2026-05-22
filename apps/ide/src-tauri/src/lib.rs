@@ -1,4 +1,5 @@
 mod commands;
+mod ollama;
 mod terminal;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -14,6 +15,15 @@ pub fn run() {
             commands::pick_folder,
             commands::get_recent_projects,
             commands::add_recent_project,
+            ollama::ollama_status,
+            ollama::ollama_models,
+            ollama::ollama_pull_model,
+            ollama::ollama_remove_model,
+            ollama::ollama_update_model,
+            ollama::ollama_start_model,
+            ollama::ollama_stop_model,
+            ollama::install_ollama,
+            ollama::runtime_info,
             terminal::terminal_create,
             terminal::terminal_write,
             terminal::terminal_resize,

@@ -4,6 +4,10 @@
 
 vastoria.online, www.vastoria.online {
 	encode gzip zstd
+	log {
+		output file /var/log/caddy/vastoria-access.log
+		format json
+	}
 
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
