@@ -153,7 +153,7 @@ pub fn terminal_create(
         .master
         .try_clone_reader()
         .map_err(|e| e.to_string())?;
-    let mut writer = pair
+    let writer = pair
         .master
         .take_writer()
         .map_err(|e| e.to_string())?;

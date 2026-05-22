@@ -27,6 +27,7 @@ import {
   getRuntimeInfo,
   installOllama,
   onOllamaProgress,
+  cancelOllamaOperation,
   pullOllamaModel,
   removeOllamaModel,
   startOllamaModel,
@@ -74,6 +75,10 @@ const modelCatalog = [
   { name: "phi3", tags: ["lightweight"], ram: "4 GB+", vram: "None", size: "2.3 GB" },
   { name: "gemma2", tags: ["general", "lightweight"], ram: "8 GB+", vram: "6 GB+", size: "5.4 GB" },
 ];
+
+function operationId(action: string, model: string) {
+  return `${action}:${model.trim().toLowerCase()}`;
+}
 
 export function SettingsView() {
   const [active, setActive] = useState<Category>("general");
@@ -282,6 +287,8 @@ function AiModelsSettings() {
   const [customModel, setCustomModel] = useState("");
   const [filter, setFilter] = useState("");
   const [progress, setProgress] = useState<OllamaProgressEvent | null>(null);
+  const [activeOperations, setActiveOperations] = useState<Record<string, OllamaProgressEvent>>({});
+  const [lastOperation, setLastOperation] = useState<{ action: string; model: string } | null>(null);
   const [error, setError] = useState("");
 
   const refresh = async () => {
@@ -302,6 +309,15 @@ function AiModelsSettings() {
     let unlisten: (() => void) | undefined;
     void onOllamaProgress((event) => {
       setProgress(event);
+      setActiveOperations((current) => {
+        const next = { ...current };
+        if (event.done) {
+          delete next[event.operationId];
+        } else {
+          next[event.operationId] = event;
+        }
+        return next;
+      });
       if (event.done) void refresh();
     }).then((fn) => {
       unlisten = fn;
@@ -309,13 +325,37 @@ function AiModelsSettings() {
     return () => unlisten?.();
   }, []);
 
-  const pull = async (model: string) => {
+  const isBusy = (action: string, model: string) => Boolean(activeOperations[operationId(action, model)]);
+  const installBusy = Boolean(activeOperations["install:ollama"]);
+  const hasActiveOperations = installBusy || Object.keys(activeOperations).length > 0;
+
+  const runOperation = async (action: string, model: string, fn: () => Promise<void>) => {
     setError("");
+    setLastOperation({ action, model });
     try {
-      await pullOllamaModel(model);
+      await fn();
     } catch (err) {
       setError(String(err));
     }
+  };
+
+  const pull = (model: string) => runOperation("pull", model, () => pullOllamaModel(model));
+  const cancelOperation = async (id: string) => {
+    try {
+      await cancelOllamaOperation(id);
+    } catch (err) {
+      setError(String(err));
+    }
+  };
+  const retryLastOperation = () => {
+    if (!lastOperation) return;
+    const { action, model } = lastOperation;
+    if (action === "install") void runOperation("install", "ollama", installOllama);
+    if (action === "pull") void pull(model);
+    if (action === "update") void runOperation("update", model, () => updateOllamaModel(model));
+    if (action === "remove") void runOperation("remove", model, () => removeOllamaModel(model));
+    if (action === "start") void runOperation("start", model, () => startOllamaModel(model));
+    if (action === "stop") void runOperation("stop", model, () => stopOllamaModel(model));
   };
 
   const filteredCatalog = modelCatalog.filter((model) => {
@@ -342,12 +382,37 @@ function AiModelsSettings() {
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             <Button onClick={refresh} icon={RefreshCw}>Refresh</Button>
-            {!status?.installed && <Button onClick={() => installOllama().catch((err) => setError(String(err)))} icon={Download}>Install Ollama</Button>}
+            {!status?.installed && <Button disabled={installBusy} onClick={() => runOperation("install", "ollama", installOllama)} icon={Download}>{installBusy ? "Installing" : "Install Ollama"}</Button>}
+            {progress?.done && progress.error && lastOperation && <Button onClick={retryLastOperation} icon={RefreshCw}>Retry</Button>}
           </div>
           {progress && (
             <div className="mt-4 rounded-md border border-vast-border bg-vast-bg p-3 font-mono text-xs text-vast-fg-muted">
-              <div className="mb-1 text-vast-fg">{progress.action}: {progress.model}</div>
+              <div className="mb-1 flex flex-wrap items-center justify-between gap-2 text-vast-fg">
+                <span>{progress.action}: {progress.model} · {progress.state}</span>
+                {!progress.done && <button type="button" onClick={() => void cancelOperation(progress.operationId)} className="rounded border border-vast-border px-2 py-1 text-[11px] text-vast-fg-muted hover:bg-vast-bg-hover hover:text-vast-fg">Cancel</button>}
+              </div>
+              {typeof progress.percent === "number" && (
+                <div className="mb-2 h-1.5 overflow-hidden rounded bg-vast-bg-hover">
+                  <div className="h-full bg-vast-accent transition-[width]" style={{ width: `${progress.percent}%` }} />
+                </div>
+              )}
               <div className="truncate">{progress.line}</div>
+              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+                {typeof progress.percent === "number" && <span>{progress.percent.toFixed(1)}%</span>}
+                {progress.downloaded && progress.total && <span>{progress.downloaded} / {progress.total}</span>}
+                {progress.speed && <span>{progress.speed}</span>}
+                {progress.eta && <span>ETA {progress.eta}</span>}
+              </div>
+            </div>
+          )}
+          {hasActiveOperations && (
+            <div className="mt-3 space-y-2">
+              {Object.values(activeOperations).map((operation) => (
+                <div key={operation.operationId} className="flex items-center justify-between gap-3 rounded-md border border-vast-border bg-vast-bg px-3 py-2 text-xs">
+                  <span className="truncate">{operation.action}: {operation.model} · {operation.state}</span>
+                  <button type="button" onClick={() => void cancelOperation(operation.operationId)} className="shrink-0 text-vast-fg-muted hover:text-vast-fg">Cancel</button>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -386,10 +451,10 @@ function AiModelsSettings() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <IconButton title="Set default" onClick={() => s.updateAi({ defaultModel: model.name })} icon={Check} />
-                <IconButton title="Start" onClick={() => startOllamaModel(model.name).catch((err) => setError(String(err)))} icon={Play} />
-                <IconButton title="Stop" onClick={() => stopOllamaModel(model.name).then(refresh).catch((err) => setError(String(err)))} icon={Square} />
-                <IconButton title="Update" onClick={() => updateOllamaModel(model.name).catch((err) => setError(String(err)))} icon={RefreshCw} />
-                <IconButton title="Remove" onClick={() => removeOllamaModel(model.name).then(refresh).catch((err) => setError(String(err)))} icon={Trash2} />
+                <IconButton title="Start" disabled={isBusy("start", model.name)} onClick={() => runOperation("start", model.name, () => startOllamaModel(model.name))} icon={Play} />
+                <IconButton title="Stop" disabled={isBusy("stop", model.name)} onClick={() => runOperation("stop", model.name, () => stopOllamaModel(model.name))} icon={Square} />
+                <IconButton title="Update" disabled={isBusy("update", model.name)} onClick={() => runOperation("update", model.name, () => updateOllamaModel(model.name))} icon={RefreshCw} />
+                <IconButton title="Remove" disabled={isBusy("remove", model.name)} onClick={() => runOperation("remove", model.name, () => removeOllamaModel(model.name))} icon={Trash2} />
               </div>
             </div>
           ))}
@@ -412,14 +477,14 @@ function AiModelsSettings() {
                   </div>
                   <p className="mt-3 text-sm text-vast-fg-muted">RAM {model.ram} · VRAM {model.vram} · Download {model.size}</p>
                 </div>
-                <Button onClick={() => pull(model.name)} icon={Download}>Pull</Button>
+                <Button disabled={isBusy("pull", model.name)} onClick={() => pull(model.name)} icon={Download}>{isBusy("pull", model.name) ? "Pulling" : "Pull"}</Button>
               </div>
             </div>
           ))}
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
           <TextInput value={customModel} onChange={setCustomModel} placeholder="custom/model:tag" />
-          <Button disabled={!customModel.trim()} onClick={() => pull(customModel.trim())} icon={Download}>Pull custom</Button>
+          <Button disabled={!customModel.trim() || isBusy("pull", customModel.trim())} onClick={() => pull(customModel.trim())} icon={Download}>Pull custom</Button>
         </div>
       </div>
     </SettingsSection>
@@ -616,8 +681,8 @@ function Button({ children, icon: Icon, disabled, onClick }: { children: React.R
   return <button type="button" disabled={disabled} onClick={onClick} className="inline-flex h-9 items-center gap-2 rounded-md bg-vast-accent px-3 text-sm text-white hover:bg-vast-accent-hover disabled:cursor-not-allowed disabled:opacity-50">{Icon && <Icon size={16} />}{children}</button>;
 }
 
-function IconButton({ title, icon: Icon, onClick }: { title: string; icon: typeof Download; onClick: () => void }) {
-  return <button type="button" title={title} aria-label={title} onClick={onClick} className="flex h-8 w-8 items-center justify-center rounded-md border border-vast-border text-vast-fg-muted hover:bg-vast-bg-hover hover:text-vast-fg"><Icon size={15} /></button>;
+function IconButton({ title, icon: Icon, disabled, onClick }: { title: string; icon: typeof Download; disabled?: boolean; onClick: () => void }) {
+  return <button type="button" disabled={disabled} title={title} aria-label={title} onClick={onClick} className="flex h-8 w-8 items-center justify-center rounded-md border border-vast-border text-vast-fg-muted hover:bg-vast-bg-hover hover:text-vast-fg disabled:cursor-not-allowed disabled:opacity-50"><Icon size={15} /></button>;
 }
 
 function AnchorButton({ href, icon: Icon, children }: { href: string; icon: typeof ExternalLink; children: React.ReactNode }) {

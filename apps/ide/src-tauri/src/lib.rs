@@ -7,6 +7,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(terminal::TerminalState::default())
+        .manage(ollama::OllamaOperationState::default())
         .invoke_handler(tauri::generate_handler![
             commands::read_directory,
             commands::read_directory_recursive,
@@ -23,6 +24,7 @@ pub fn run() {
             ollama::ollama_start_model,
             ollama::ollama_stop_model,
             ollama::install_ollama,
+            ollama::ollama_cancel_operation,
             ollama::runtime_info,
             terminal::terminal_create,
             terminal::terminal_write,

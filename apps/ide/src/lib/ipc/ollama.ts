@@ -39,6 +39,10 @@ export function installOllama(): Promise<void> {
   return invoke("install_ollama");
 }
 
+export function cancelOllamaOperation(operationId: string): Promise<void> {
+  return invoke("ollama_cancel_operation", { operationId });
+}
+
 export function getRuntimeInfo(): Promise<RuntimeInfo> {
   return invoke("runtime_info");
 }

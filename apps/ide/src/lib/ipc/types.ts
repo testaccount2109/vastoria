@@ -75,10 +75,18 @@ export interface OllamaModel {
 }
 
 export interface OllamaProgressEvent {
+  operationId: string;
   model: string;
   action: string;
+  state: string;
   line: string;
+  percent?: number;
+  speed?: string;
+  downloaded?: string;
+  total?: string;
+  eta?: string;
   done: boolean;
+  cancelled: boolean;
   error?: string;
 }
 
